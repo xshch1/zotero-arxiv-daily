@@ -5,6 +5,10 @@ from omegaconf import DictConfig
 import hydra
 from loguru import logger
 import dotenv
+
+import os
+from omegaconf import OmegaConf
+
 from zotero_arxiv_daily.executor import Executor
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 dotenv.load_dotenv()
