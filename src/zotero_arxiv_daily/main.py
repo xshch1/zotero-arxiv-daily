@@ -13,6 +13,8 @@ from zotero_arxiv_daily.executor import Executor
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 dotenv.load_dotenv()
 
+OmegaConf.register_resolver("oc.env", lambda env_var, default=None: os.environ.get(env_var, default))
+
 @hydra.main(version_base=None, config_path="../../config", config_name="default")
 def main(config:DictConfig):
     # Configure loguru log level based on config
