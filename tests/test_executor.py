@@ -42,6 +42,50 @@ def test_normalize_path_patterns_accepts_empty_list():
 
 
 def test_normalize_path_patterns_accepts_none():
+    assert normalize_path_patterns(None, "include_path") is None"""Tests for zotero_arxiv_daily.executor: normalize_path_patterns, filter_corpus, fetch_zotero_corpus, E2E."""
+
+from datetime import datetime
+
+import pytest
+from omegaconf import OmegaConf
+
+from zotero_arxiv_daily.executor import Executor, normalize_path_patterns
+from zotero_arxiv_daily.protocol import CorpusPaper
+
+
+# ---------------------------------------------------------------------------
+# normalize_path_patterns — migrated from test_include_path.py
+# ---------------------------------------------------------------------------
+
+
+def test_normalize_path_patterns_rejects_single_string_for_include_path():
+    with pytest.raises(TypeError, match="config.zotero.include_path must be a list"):
+        normalize_path_patterns("2026/survey/**", "include_path")
+
+
+def test_normalize_path_patterns_accepts_list_config_for_include_path():
+    include_path = OmegaConf.create(["2026/survey/**", "2026/reading-group/**"])
+    assert normalize_path_patterns(include_path, "include_path") == [
+        "2026/survey/**",
+        "2026/reading-group/**",
+    ]
+
+
+def test_normalize_path_patterns_rejects_single_string_for_ignore_path():
+    with pytest.raises(TypeError, match="config.zotero.ignore_path must be a list"):
+        normalize_path_patterns("archive/**", "ignore_path")
+
+
+def test_normalize_path_patterns_accepts_list_config_for_ignore_path():
+    ignore_path = OmegaConf.create(["archive/**", "2025/**"])
+    assert normalize_path_patterns(ignore_path, "ignore_path") == ["archive/**", "2025/**"]
+
+
+def test_normalize_path_patterns_accepts_empty_list():
+    assert normalize_path_patterns([], "ignore_path") == []
+
+
+def test_normalize_path_patterns_accepts_none():
     assert normalize_path_patterns(None, "include_path") is None
 
 
@@ -144,7 +188,7 @@ def test_fetch_zotero_corpus_paper_with_zero_collections(config, monkeypatch):
     assert corpus[0].paths == []
 
 
-def test_fetch_zotero_corpus_filters_items_without_abstract(config, monkeypatch):
+def test_fetch_zotero_corpus_uses_title_when_abstract_is_missing(config, monkeypatch):
     from tests.canned_responses import make_stub_zotero_client
 
     items = [
@@ -174,7 +218,34 @@ def test_fetch_zotero_corpus_filters_items_without_abstract(config, monkeypatch)
     executor.config = config
     corpus = executor.fetch_zotero_corpus()
 
-    assert [paper.title for paper in corpus] == ["With Abstract"]
+    assert [paper.title for paper in corpus] == ["With Abstract", "No Abstract"]
+    assert corpus[1].abstract == "No Abstract"
+
+
+def test_fetch_zotero_corpus_falls_back_to_unknown_item_types(config, monkeypatch):
+    from tests.canned_responses import make_stub_zotero_client
+
+    items = [
+        {
+            "data": {
+                "itemType": "document",
+                "title": "Unknown Type Paper",
+                "abstractNote": "Useful abstract.",
+                "dateAdded": "2026-03-01T00:00:00Z",
+                "collections": [],
+            }
+        }
+    ]
+    stub_zot = make_stub_zotero_client(items=items)
+    monkeypatch.setattr("zotero_arxiv_daily.executor.zotero.Zotero", lambda *a, **kw: stub_zot)
+
+    executor = Executor.__new__(Executor)
+    executor.config = config
+    corpus = executor.fetch_zotero_corpus()
+
+    assert len(corpus) == 1
+    assert corpus[0].title == "Unknown Type Paper"
+    assert corpus[0].abstract == "Useful abstract."
 
 
 # ---------------------------------------------------------------------------
