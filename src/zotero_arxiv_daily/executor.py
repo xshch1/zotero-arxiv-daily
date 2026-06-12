@@ -12,6 +12,8 @@ from .utils import send_email
 from openai import OpenAI
 from tqdm import tqdm
 
+SUPPORTED_ZOTERO_ITEM_TYPES = {"conferencePaper", "journalArticle", "preprint"}
+
 
 def normalize_path_patterns(patterns: list[str] | ListConfig | None, config_key: str) -> list[str] | None:
     if patterns is None:
@@ -44,15 +46,32 @@ class Executor:
         zot = zotero.Zotero(self.config.zotero.user_id, 'user', self.config.zotero.api_key)
         collections = zot.everything(zot.collections())
         collections = {c['key']:c for c in collections}
-        corpus = zot.everything(zot.items(itemType='conferencePaper || journalArticle || preprint'))
-        corpus = [c for c in corpus if c['data']['abstractNote'] != '']
+        zotero_items = zot.everything(zot.items())
+        logger.info(f"Fetched {len(zotero_items)} total zotero items")
+
+        corpus = [
+            item for item in zotero_items
+            if item.get("data", {}).get("itemType") in SUPPORTED_ZOTERO_ITEM_TYPES
+        ]
+        logger.info(f"Kept {len(corpus)} zotero papers after itemType filtering")
+
+        corpus = [
+            item for item in corpus
+            if item.get("data", {}).get("abstractNote")
+        ]
+        logger.info(f"Kept {len(corpus)} zotero papers after abstract filtering")
+
         def get_collection_path(col_key:str) -> str:
             if p := collections[col_key]['data']['parentCollection']:
                 return get_collection_path(p) + '/' + collections[col_key]['data']['name']
             else:
                 return collections[col_key]['data']['name']
         for c in corpus:
-            paths = [get_collection_path(col) for col in c['data']['collections']]
+            paths = [
+                get_collection_path(col)
+                for col in c['data'].get('collections', [])
+                if col in collections
+            ]
             c['paths'] = paths
         logger.info(f"Fetched {len(corpus)} zotero papers")
         return [CorpusPaper(
@@ -94,7 +113,10 @@ class Executor:
         corpus = self.fetch_zotero_corpus()
         corpus = self.filter_corpus(corpus)
         if len(corpus) == 0:
-            logger.error(f"No zotero papers found. Please check your zotero settings:\n{self.config.zotero}")
+            logger.error(
+                "No zotero papers found. Please check your Zotero user_id, API key permissions, "
+                "item types, abstracts, include_path, and ignore_path."
+            )
             return
         all_papers = []
         for source, retriever in self.retrievers.items():
