@@ -11,6 +11,7 @@ from .construct_email import render_email
 from .utils import send_email
 from openai import OpenAI
 from tqdm import tqdm
+from collections import Counter
 
 SUPPORTED_ZOTERO_ITEM_TYPES = {"conferencePaper", "journalArticle", "preprint"}
 
@@ -48,18 +49,31 @@ class Executor:
         collections = {c['key']:c for c in collections}
         zotero_items = zot.everything(zot.items())
         logger.info(f"Fetched {len(zotero_items)} total zotero items")
+        item_type_counts = Counter(item.get("data", {}).get("itemType", "<missing>") for item in zotero_items)
+        logger.info(f"Zotero itemType counts: {dict(item_type_counts)}")
 
-        corpus = [
+        typed_corpus = [
             item for item in zotero_items
             if item.get("data", {}).get("itemType") in SUPPORTED_ZOTERO_ITEM_TYPES
         ]
-        logger.info(f"Kept {len(corpus)} zotero papers after itemType filtering")
+        logger.info(f"Kept {len(typed_corpus)} zotero papers after itemType filtering")
 
         corpus = [
-            item for item in corpus
-            if item.get("data", {}).get("abstractNote")
+            item for item in typed_corpus
+            if item.get("data", {}).get("abstractNote") or item.get("data", {}).get("title")
         ]
-        logger.info(f"Kept {len(corpus)} zotero papers after abstract filtering")
+        logger.info(f"Kept {len(corpus)} zotero papers after text filtering")
+
+        if len(corpus) == 0 and len(typed_corpus) == 0:
+            logger.warning(
+                "No Zotero items matched the preferred item types. Falling back to all Zotero "
+                "items that have a title or abstract."
+            )
+            corpus = [
+                item for item in zotero_items
+                if item.get("data", {}).get("abstractNote") or item.get("data", {}).get("title")
+            ]
+            logger.info(f"Kept {len(corpus)} zotero items after fallback text filtering")
 
         def get_collection_path(col_key:str) -> str:
             if p := collections[col_key]['data']['parentCollection']:
@@ -75,8 +89,8 @@ class Executor:
             c['paths'] = paths
         logger.info(f"Fetched {len(corpus)} zotero papers")
         return [CorpusPaper(
-            title=c['data']['title'],
-            abstract=c['data']['abstractNote'],
+            title=c['data'].get('title', ''),
+            abstract=c['data'].get('abstractNote') or c['data'].get('title', ''),
             added_date=datetime.strptime(c['data']['dateAdded'], '%Y-%m-%dT%H:%M:%SZ'),
             paths=c['paths']
         ) for c in corpus]
