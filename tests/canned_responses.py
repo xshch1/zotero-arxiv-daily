@@ -81,6 +81,7 @@ _DEFAULT_COLLECTIONS = [
 _DEFAULT_ITEMS = [
     {
         "data": {
+            "itemType": "journalArticle",
             "title": "Stub Paper 1",
             "abstractNote": "Abstract of stub paper 1.",
             "dateAdded": "2026-01-15T10:00:00Z",
@@ -89,6 +90,7 @@ _DEFAULT_ITEMS = [
     },
     {
         "data": {
+            "itemType": "preprint",
             "title": "Stub Paper 2",
             "abstractNote": "Abstract of stub paper 2.",
             "dateAdded": "2026-02-20T12:00:00Z",
