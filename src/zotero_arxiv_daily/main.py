@@ -13,7 +13,6 @@ from zotero_arxiv_daily.executor import Executor
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 dotenv.load_dotenv()
 
-OmegaConf.resolve(config)
 
 @hydra.main(version_base=None, config_path="../../config", config_name="default")
 def main(config:DictConfig):
@@ -33,7 +32,9 @@ def main(config:DictConfig):
 
     if config.executor.debug:
         logger.info("Debug mode is enabled")
-    
+        
+    OmegaConf.resolve(config)
+
     executor = Executor(config)
     executor.run()
 
