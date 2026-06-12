@@ -125,6 +125,7 @@ def test_fetch_zotero_corpus_paper_with_zero_collections(config, monkeypatch):
     items = [
         {
             "data": {
+                "itemType": "journalArticle",
                 "title": "No Collection Paper",
                 "abstractNote": "Abstract.",
                 "dateAdded": "2026-03-01T00:00:00Z",
@@ -141,6 +142,39 @@ def test_fetch_zotero_corpus_paper_with_zero_collections(config, monkeypatch):
 
     assert len(corpus) == 1
     assert corpus[0].paths == []
+
+
+def test_fetch_zotero_corpus_filters_items_without_abstract(config, monkeypatch):
+    from tests.canned_responses import make_stub_zotero_client
+
+    items = [
+        {
+            "data": {
+                "itemType": "journalArticle",
+                "title": "With Abstract",
+                "abstractNote": "Abstract.",
+                "dateAdded": "2026-03-01T00:00:00Z",
+                "collections": [],
+            }
+        },
+        {
+            "data": {
+                "itemType": "journalArticle",
+                "title": "No Abstract",
+                "abstractNote": "",
+                "dateAdded": "2026-03-02T00:00:00Z",
+                "collections": [],
+            }
+        },
+    ]
+    stub_zot = make_stub_zotero_client(items=items)
+    monkeypatch.setattr("zotero_arxiv_daily.executor.zotero.Zotero", lambda *a, **kw: stub_zot)
+
+    executor = Executor.__new__(Executor)
+    executor.config = config
+    corpus = executor.fetch_zotero_corpus()
+
+    assert [paper.title for paper in corpus] == ["With Abstract"]
 
 
 # ---------------------------------------------------------------------------
